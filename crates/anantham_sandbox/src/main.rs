@@ -1,7 +1,10 @@
-use anantham_core::hello_core;
-use anantham_render::hello_render;
+use anantham_core::plugin::AnanthamCorePlugin;
+use anantham_core::prelude::*;
 
-fn main() {
-    hello_core();
-    hello_render();
+fn main() -> AppExit {
+    let mut app = App::new();
+
+    app.add_plugins(AnanthamCorePlugin);
+
+    app.run()
 }
