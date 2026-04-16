@@ -5,6 +5,16 @@ resolver = "2"
 [workspace.dependencies]
 anantham_core = { path = "crates/anantham_core" }
 anantham_render = { path = "crates/anantham_render" }
+bevy = { version = "0.18.1", default-features = false, features = [
+    "bevy_winit",
+    "bevy_log",
+    "wayland",
+] }
+ash = "0.38.0"
+leafwing-input-manager = "0.20.0"
+ash-window = "0.13.0"
+gpu-allocator = "0.28.0"
+raw-window-handle = "0.6.2"
 
 [profile.dev]
 opt-level = 1

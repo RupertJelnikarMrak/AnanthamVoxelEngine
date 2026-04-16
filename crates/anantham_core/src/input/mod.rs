@@ -17,18 +17,14 @@
 //! without requiring any alterations to the core gameplay systems or downstream Tier 1 Plugins.
 
 pub mod actions;
-pub mod prelude {
-    pub use super::actions::CoreAction;
-    pub use leafwing_input_manager::prelude::*;
-}
 
 use actions::{CoreAction, default_input_map};
 use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
 
-pub struct InputPlugin;
+pub struct AnanthamInputPlugin;
 
-impl Plugin for InputPlugin {
+impl Plugin for AnanthamInputPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(InputManagerPlugin::<CoreAction>::default());
 

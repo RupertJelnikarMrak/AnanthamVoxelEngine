@@ -6,3 +6,4 @@ edition = "2024"
 [dependencies]
 anantham_core = { workspace = true }
 anantham_render = { workspace = true }
+bevy = { workspace = true }
