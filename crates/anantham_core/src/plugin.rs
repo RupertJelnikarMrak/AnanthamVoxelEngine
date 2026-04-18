@@ -8,9 +8,11 @@
 
 use crate::input::AnanthamInputPlugin;
 use crate::render_bridge::RenderBridgePlugin;
+use crate::voxel::VoxelCorePlugin;
 use crate::window::{ANANTHAM_WINDOW_TITLE, AnanthamWindowPlugin};
 use bevy::prelude::*;
 use bevy::window::WindowResolution;
+use std::time::Duration;
 
 pub struct AnanthamCorePlugin;
 
@@ -28,6 +30,10 @@ impl Plugin for AnanthamCorePlugin {
             AnanthamWindowPlugin,
             AnanthamInputPlugin,
             RenderBridgePlugin,
+            VoxelCorePlugin,
         ));
+
+        // Set tick speed to 50ms / 20 times a second.
+        app.insert_resource(Time::<Fixed>::from_duration(Duration::from_millis(50)));
     }
 }

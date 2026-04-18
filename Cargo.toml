@@ -15,6 +15,7 @@ leafwing-input-manager = "0.20.0"
 ash-window = "0.13.0"
 gpu-allocator = "0.28.0"
 raw-window-handle = "0.6.2"
+futures-lite = "2.6.1"
 
 [profile.dev]
 opt-level = 1

@@ -1,6 +1,7 @@
 pub mod input;
 pub mod plugin;
 pub mod render_bridge;
+pub mod voxel;
 pub mod window;
 
 pub mod vendor {
