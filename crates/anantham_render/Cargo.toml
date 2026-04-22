@@ -10,3 +10,4 @@ raw-window-handle = { workspace = true }
 gpu-allocator = { workspace = true }
 anantham_core = { workspace = true }
 bevy = { workspace = true }
+bytemuck = { workspace = true }

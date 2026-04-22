@@ -10,6 +10,7 @@ use crate::input::AnanthamInputPlugin;
 use crate::render_bridge::RenderBridgePlugin;
 use crate::voxel::VoxelCorePlugin;
 use crate::window::{ANANTHAM_WINDOW_TITLE, AnanthamWindowPlugin};
+use bevy::asset::io::AssetSourceBuilder;
 use bevy::prelude::*;
 use bevy::window::WindowResolution;
 use std::time::Duration;
@@ -18,6 +19,8 @@ pub struct AnanthamCorePlugin;
 
 impl Plugin for AnanthamCorePlugin {
     fn build(&self, app: &mut App) {
+        app.register_asset_source("data", AssetSourceBuilder::platform_default("data", None));
+
         app.add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 title: ANANTHAM_WINDOW_TITLE.to_string(),

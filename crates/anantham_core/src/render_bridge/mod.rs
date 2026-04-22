@@ -1,3 +1,6 @@
+pub mod extraction;
+pub mod gpu_types;
+
 use bevy::ecs::schedule::ScheduleLabel;
 use bevy::prelude::*;
 

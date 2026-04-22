@@ -7,6 +7,8 @@ use bevy::prelude::*;
 pub enum ChunkError {
     /// A local coordinate was out of chunk bounds.
     OutOfLocalBounds,
+    /// The block is not in the registry.
+    UnregisteredBlockSet,
 }
 
 impl Chunk {

@@ -1,82 +1,83 @@
-//! Block registry is the bridge between human readable block namespace:name ids and optimised
-//! engine readable u32 block-states.
-
-// TODO: Helper builder for blocks to also feature an all in one block and item creation system
-
+use super::property::registry::PropertyPadder;
 use crate::voxel::block::{Block, BlockState};
 use bevy::prelude::*;
 use std::collections::HashMap;
 use std::sync::Arc;
 
+/// Bridge between the Block and BlockState
+/// When a new Block is registered it adds and padds the new block sates to all Property registries.
+/// Calling this dirrectly is not recommended. Instead use `BlockBuilder` for non divisible
+/// blocks or `MaterialBuilder`for material blocks that need stair, slab, quarter forms.
 #[derive(Resource, Default)]
 pub struct BlockRegistry {
-    /// Safe string lookup for when mods register blocks or logic queries a block by name.
-    name_to_block: HashMap<String, Block>,
+    name_to_block: HashMap<String, Arc<Block>>,
+    state_to_block: Vec<Arc<Block>>,
 
-    /// Flat array for O(1) reverse lookups from BlockState ID -> String.
-    /// Uses Arc<str> so multi-state blocks share a single string allocation.
-    state_to_name: Vec<Arc<str>>,
+    property_padders: Vec<Box<dyn PropertyPadder>>,
 }
 
 impl BlockRegistry {
-    /// Registers a new block and allocates a contiguous block of state IDs.
-    pub fn register(&mut self, namespace: &str, state_count: u32) -> Block {
-        if let Some(existing) = self.name_to_block.get(namespace) {
-            return Block {
-                base_id: existing.base_id,
-                state_count: existing.state_count,
-                name: Arc::clone(&existing.name),
-            };
-        }
+    /// ONLY allowed during the Init Stage.
+    /// Registers a new property array (like Meshing or Physics) to be auto-padded.
+    pub fn register_property_array(&mut self, padder: Box<dyn PropertyPadder>) {
+        padder.pad_to(self.state_to_block.len());
+        self.property_padders.push(padder);
+    }
 
-        let base_id = self.state_to_name.len() as u32;
-        let name_arc: Arc<str> = Arc::from(namespace);
-
-        let block = Block {
+    /// Allowed at any time (Init or Runtime/Hot-Reloading).
+    /// Allocates IDs and instantly synchronizes all registered property arrays.
+    pub fn register_block(
+        &mut self,
+        namespace: &str,
+        name: &str,
+        display_name: &str,
+        state_count: u32,
+        is_divisible: bool,
+    ) -> Arc<Block> {
+        let base_id = self.state_to_block.len() as u32;
+        let block = Arc::new(Block {
             base_id,
             state_count,
-            name: Arc::clone(&name_arc),
-        };
+            namespace: Arc::from(namespace),
+            name: Arc::from(name),
+            display_name: Arc::from(display_name),
+            is_divisible,
+        });
 
-        self.name_to_block.insert(
-            namespace.to_string(),
-            Block {
-                base_id,
-                state_count,
-                name: Arc::clone(&name_arc),
-            },
-        );
+        self.name_to_block
+            .insert(namespace.to_string(), Arc::clone(&block));
 
         for _ in 0..state_count {
-            self.state_to_name.push(Arc::clone(&name_arc));
+            self.state_to_block.push(Arc::clone(&block));
+        }
+
+        let new_total = self.state_to_block.len();
+
+        for padder in &self.property_padders {
+            padder.pad_to(new_total);
         }
 
         block
     }
 
-    /// Safe lookup for UI, debugging, and command parsing.
-    pub fn get_name(&self, state: BlockState) -> Option<&str> {
-        self.state_to_name
-            .get(state.0 as usize)
-            .map(|arc| arc.as_ref())
+    pub fn get_block_by_name(&self, namespace: &str) -> Option<Arc<Block>> {
+        self.name_to_block.get(namespace).cloned()
     }
 
-    /// Blazing fast, unchecked reverse lookup.
-    /// Use this in rendering or hot-path loops.
+    pub fn get_block(&self, state: BlockState) -> Option<Arc<Block>> {
+        self.state_to_block.get(state.0 as usize).cloned()
+    }
+
+    /// Blazing fast state-to-block resolution.
+    /// # Safety
+    /// Caller should guarantee `state` was retrieved from valid, bounds-checked chunk memory.
     #[inline(always)]
-    pub fn get_name_unchecked(&self, state: BlockState) -> &str {
-        let id = state.0 as usize;
-
-        #[cfg(debug_assertions)]
-        {
-            &self.state_to_name[id]
-        }
-
-        #[cfg(not(debug_assertions))]
-        {
-            // SAFETY: The caller must guarantee the BlockState was pulled from
-            // valid chunk memory, meaning it was registered and exists in the bounds.
-            unsafe { self.state_to_name.get_unchecked(id) }
-        }
+    pub unsafe fn get_block_unchecked(&self, state: BlockState) -> Arc<Block> {
+        debug_assert!(
+            self.state_to_block.len() > state.0 as usize,
+            "Attempted to get block unchecked with an unregistered BlockState: {}",
+            state.0
+        );
+        unsafe { Arc::clone(self.state_to_block.get_unchecked(state.0 as usize)) }
     }
 }

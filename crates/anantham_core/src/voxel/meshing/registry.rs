@@ -1,6 +1,7 @@
-use crate::voxel::block::BlockState;
 use bevy::prelude::*;
-use std::sync::Arc;
+use serde::Deserialize;
+
+use crate::voxel::block::BlockPropertyAsset;
 
 /// Data associated with a block, used to determine how a block gets meshed
 #[derive(Clone, Copy, Debug)]
@@ -52,47 +53,24 @@ impl MeshingAttributes {
     }
 }
 
-/// A centralized registry holding flat arrays of meshing attributes indexed directly by BlockState (u32)
-#[derive(Resource, Default, Clone)]
-pub struct MeshingRegistry {
-    pub meshing_data: Arc<Vec<MeshingAttributes>>,
+#[derive(Asset, TypePath, Clone, Debug, Deserialize)]
+pub struct MeshingAssets {
+    pub is_visible: bool,
+    #[serde(default)]
+    pub is_transparent: bool,
+    #[serde(default)]
+    pub material_id: u16,
 }
 
-impl MeshingRegistry {
-    /// Safely sets meshing data, resizing the internal array if necessary.
-    pub fn set_meshing(&mut self, state: BlockState, attributes: MeshingAttributes) {
-        let data = Arc::make_mut(&mut self.meshing_data);
+/// Bridges the disk data to the runtime flat array
+impl BlockPropertyAsset for MeshingAssets {
+    type RuntimeData = MeshingAttributes;
 
-        let id = state.0 as usize;
-        if id >= data.len() {
-            data.resize(id + 1, MeshingAttributes::default());
+    fn to_runtime(&self) -> Self::RuntimeData {
+        MeshingAttributes {
+            is_visible: self.is_visible,
+            is_transparent: self.is_transparent,
+            material_id: self.material_id,
         }
-        data[id] = attributes;
-    }
-
-    /// Safe getter. Returns default attributes (AIR/Empty) if the BlockState is out of bounds.
-    /// Useful for UI, debug tools, or handling corrupted chunk saves safely.
-    #[inline]
-    pub fn get_meshing(&self, state: BlockState) -> MeshingAttributes {
-        self.meshing_data
-            .get(state.0 as usize)
-            .copied()
-            .unwrap_or_default()
-    }
-
-    /// Super-fast getter for the meshing hot-loop.
-    ///
-    /// # Safety
-    /// The caller must ensure that `state.0` is strictly less than the length of `meshing_data`.
-    /// Passing an unregistered or out-of-bounds BlockState will cause Undefined Behavior.
-    #[inline(always)]
-    pub unsafe fn get_meshing_unchecked(&self, state: BlockState) -> &MeshingAttributes {
-        debug_assert!(
-            (state.0 as usize) < self.meshing_data.len(),
-            "BlockState {} out of bounds for MeshingRegistry!",
-            state.0
-        );
-
-        unsafe { self.meshing_data.get_unchecked(state.0 as usize) }
     }
 }

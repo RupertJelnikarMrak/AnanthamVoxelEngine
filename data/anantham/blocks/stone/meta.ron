@@ -1,0 +1,5 @@
+{
+    name: "Stone",
+    description: "Base stone block.",
+    texture_id: "anantham:stone"
+}

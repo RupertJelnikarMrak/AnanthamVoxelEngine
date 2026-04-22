@@ -2,13 +2,14 @@ use bevy::prelude::*;
 use bevy::tasks::{AsyncComputeTaskPool, Task};
 use futures_lite::future;
 
+use crate::voxel::block::PropertyRegistry;
 use crate::voxel::chunk::Chunk;
 use crate::voxel::world::ChunkMap;
 
 use super::context::MeshingContext;
 use super::greedy::generate_greedy_quads;
 use super::meshlet::{Meshlet, build_meshlets};
-use super::registry::MeshingRegistry;
+use super::registry::MeshingAttributes;
 
 /// Marker component added to a chunk when its blocks are modified.
 #[derive(Component)]
@@ -32,14 +33,14 @@ type DirtyChunkFilter = (With<MeshDirty>, Without<MeshingTask>);
 
 pub fn dispatch_meshing_tasks(
     mut commands: Commands,
-    registry: Res<MeshingRegistry>,
+    registry: Res<PropertyRegistry<MeshingAttributes>>,
     chunk_map: Res<ChunkMap>,
     query: Query<(Entity, &Chunk, &ChunkCoord), DirtyChunkFilter>,
     all_chunks: Query<&Chunk>,
 ) {
     let thread_pool = AsyncComputeTaskPool::get();
 
-    let registry_arc = (*registry).clone();
+    let registry_arc = registry.clone();
 
     for (entity, center_chunk, coord) in query.iter() {
         let pos = coord.0;

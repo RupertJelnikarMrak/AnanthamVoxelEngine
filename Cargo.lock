@@ -106,8 +106,12 @@ name = "anantham_core"
 version = "0.1.0"
 dependencies = [
  "bevy",
+ "bytemuck",
  "futures-lite",
  "leafwing-input-manager",
+ "ron",
+ "serde",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -118,6 +122,7 @@ dependencies = [
  "ash",
  "ash-window",
  "bevy",
+ "bytemuck",
  "gpu-allocator 0.28.0",
  "raw-window-handle",
 ]

@@ -1,10 +1,11 @@
 use super::context::MeshingContext;
 use super::quad::{UnpackedQuad, VoxelFace};
-use super::registry::MeshingRegistry;
-use crate::voxel::block::BlockState;
+use super::registry::MeshingAttributes;
+use crate::voxel::block::{BlockState, PropertyRegistry};
 use bevy::math::IVec3;
 
 pub const CHUNK_SIZE: i32 = 32;
+pub const MASK_SIZE: usize = (CHUNK_SIZE * CHUNK_SIZE) as usize;
 
 #[inline(always)]
 fn get_face(axis: usize, is_positive_dir: bool) -> VoxelFace {
@@ -21,9 +22,13 @@ fn get_face(axis: usize, is_positive_dir: bool) -> VoxelFace {
 
 pub fn generate_greedy_quads(
     ctx: &MeshingContext,
-    registry: &MeshingRegistry,
+    registry: &PropertyRegistry<MeshingAttributes>,
 ) -> Vec<UnpackedQuad> {
     let mut quads = Vec::new();
+
+    let mut mask: [Option<(BlockState, VoxelFace)>; MASK_SIZE] = [None; MASK_SIZE];
+
+    let registry_lock = registry.data.read().unwrap();
 
     for axis in 0..3 {
         let u = (axis + 1) % 3;
@@ -33,8 +38,7 @@ pub fn generate_greedy_quads(
         let mut q = [0i32; 3];
         q[axis] = 1;
 
-        let mut mask: Vec<Option<(BlockState, VoxelFace)>> =
-            vec![None; (CHUNK_SIZE * CHUNK_SIZE) as usize];
+        mask.fill(None);
 
         x[axis] = -1;
         while x[axis] < CHUNK_SIZE {
@@ -52,8 +56,8 @@ pub fn generate_greedy_quads(
                     // SAFETY: The mesher assumes that all BlockStates present in a chunk
                     // have been properly registered and exist in the MeshingRegistry.
                     unsafe {
-                        let current_attr = registry.get_meshing_unchecked(state_current);
-                        let next_attr = registry.get_meshing_unchecked(state_next);
+                        let current_attr = registry_lock.get_unchecked(state_current.0 as usize);
+                        let next_attr = registry_lock.get_unchecked(state_next.0 as usize);
 
                         let identical_blocks = state_current == state_next;
 
@@ -114,8 +118,11 @@ pub fn generate_greedy_quads(
                         min[axis] = x[axis] as u8;
 
                         // SAFETY: target_state was pulled directly from the chunk data
-                        let material_id =
-                            unsafe { registry.get_meshing_unchecked(target_state).material_id };
+                        let material_id = unsafe {
+                            registry_lock
+                                .get_unchecked(target_state.0 as usize)
+                                .material_id
+                        };
 
                         quads.push(UnpackedQuad {
                             min,

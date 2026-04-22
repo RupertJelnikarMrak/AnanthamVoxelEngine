@@ -8,6 +8,7 @@ anantham_render = { path = "crates/anantham_render" }
 bevy = { version = "0.18.1", default-features = false, features = [
     "bevy_winit",
     "bevy_log",
+    "bevy_state",
     "wayland",
 ] }
 ash = "0.38.0"
@@ -16,6 +17,10 @@ ash-window = "0.13.0"
 gpu-allocator = "0.28.0"
 raw-window-handle = "0.6.2"
 futures-lite = "2.6.1"
+bytemuck = "1.25.0"
+ron = "0.12.1"
+serde = "1.0.228"
+thiserror = "2.0.18"
 
 [profile.dev]
 opt-level = 1

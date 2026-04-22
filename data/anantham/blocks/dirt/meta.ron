@@ -1,0 +1,5 @@
+{
+    name: "Dirt",
+    description: "Standard foundational soil.",
+    texture_id: "anantham:dirt",
+}
