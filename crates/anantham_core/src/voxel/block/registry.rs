@@ -3,6 +3,9 @@ use crate::voxel::block::{Block, BlockState};
 use bevy::prelude::*;
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, Ordering};
+
+pub static REGISTERED_STATE_COUNT: AtomicU32 = AtomicU32::new(1);
 
 /// Bridge between the Block and BlockState
 /// When a new Block is registered it adds and padds the new block sates to all Property registries.
@@ -22,6 +25,10 @@ impl BlockRegistry {
     pub fn register_property_array(&mut self, padder: Box<dyn PropertyPadder>) {
         padder.pad_to(self.state_to_block.len());
         self.property_padders.push(padder);
+    }
+
+    pub fn iter_blocks(&self) -> impl Iterator<Item = &Arc<Block>> {
+        self.name_to_block.values()
     }
 
     /// Allowed at any time (Init or Runtime/Hot-Reloading).
@@ -56,6 +63,8 @@ impl BlockRegistry {
         for padder in &self.property_padders {
             padder.pad_to(new_total);
         }
+
+        REGISTERED_STATE_COUNT.store(new_total as u32, Ordering::Release);
 
         block
     }

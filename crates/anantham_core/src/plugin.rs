@@ -8,6 +8,7 @@
 
 use crate::input::AnanthamInputPlugin;
 use crate::render_bridge::RenderBridgePlugin;
+use crate::state::EngineState;
 use crate::voxel::VoxelCorePlugin;
 use crate::window::{ANANTHAM_WINDOW_TITLE, AnanthamWindowPlugin};
 use bevy::asset::io::AssetSourceBuilder;
@@ -19,7 +20,11 @@ pub struct AnanthamCorePlugin;
 
 impl Plugin for AnanthamCorePlugin {
     fn build(&self, app: &mut App) {
-        app.register_asset_source("data", AssetSourceBuilder::platform_default("data", None));
+        let data_path = std::env::current_dir().unwrap().join("data");
+        app.register_asset_source(
+            "data",
+            AssetSourceBuilder::platform_default(data_path.to_str().unwrap(), None),
+        );
 
         app.add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
@@ -29,6 +34,9 @@ impl Plugin for AnanthamCorePlugin {
             }),
             ..default()
         }));
+
+        app.init_state::<EngineState>();
+
         app.add_plugins((
             AnanthamWindowPlugin,
             AnanthamInputPlugin,
@@ -38,5 +46,9 @@ impl Plugin for AnanthamCorePlugin {
 
         // Set tick speed to 50ms / 20 times a second.
         app.insert_resource(Time::<Fixed>::from_duration(Duration::from_millis(50)));
+
+        app.add_systems(Startup, |mut next_state: ResMut<NextState<EngineState>>| {
+            next_state.set(EngineState::RegisterBlocks);
+        });
     }
 }

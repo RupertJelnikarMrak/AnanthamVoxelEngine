@@ -1,5 +1,5 @@
-{
+(
     is_visible: true,
     is_divisible: true,
     is_transparent: false,
-}
+)

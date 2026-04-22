@@ -4,9 +4,13 @@ use bevy::prelude::*;
 use std::path::Path;
 
 /// Helper to extract "stone" from "data/anantham/blocks/stone/mesh.ron"
-fn extract_block_name(asset_path: &bevy::asset::AssetPath) -> Option<String> {
+fn extract_block_id(asset_path: &bevy::asset::AssetPath) -> Option<String> {
     let path = Path::new(asset_path.path());
-    path.parent()?.file_name()?.to_str().map(|s| s.to_string())
+
+    let block_name = path.parent()?.file_name()?.to_str()?;
+    let namespace = path.parent()?.parent()?.file_name()?.to_str()?;
+
+    Some(format!("{}:{}", namespace, block_name))
 }
 
 /// Runs once during Init. Matches loaded assets to the BlockRegistry and populates arrays.
@@ -18,7 +22,7 @@ pub fn populate_property_arrays<A: BlockPropertyAsset>(
 ) {
     for (id, asset) in assets.iter() {
         if let Some(path) = asset_server.get_path(id)
-            && let Some(block_name) = extract_block_name(&path)
+            && let Some(block_name) = extract_block_id(&path)
             && let Some(block) = block_registry.get_block_by_name(&block_name)
         {
             let runtime_data = asset.to_runtime();
@@ -42,7 +46,7 @@ pub fn hot_reload_property<A: BlockPropertyAsset>(
         if let AssetEvent::Modified { id } = message
             && let Some(new_data) = assets.get(*id)
             && let Some(path) = asset_server.get_path(*id)
-            && let Some(block_name) = extract_block_name(&path)
+            && let Some(block_name) = extract_block_id(&path)
             && let Some(block) = block_registry.get_block_by_name(&block_name)
         {
             let runtime_data = new_data.to_runtime();

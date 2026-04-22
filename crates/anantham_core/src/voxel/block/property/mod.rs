@@ -5,6 +5,15 @@ pub mod systems;
 use bevy::prelude::*;
 use serde::de::DeserializeOwned;
 
+#[derive(Resource)]
+pub struct PropertyConfig<A> {
+    pub extensions: &'static str,
+    pub _marker: std::marker::PhantomData<A>,
+}
+
+#[derive(Resource)]
+pub struct PropertyAssetHandles<A: Asset>(pub Vec<Handle<A>>);
+
 pub use registry::PropertyRegistry;
 
 /// Any Block Property file (.ron) must implement this trait.

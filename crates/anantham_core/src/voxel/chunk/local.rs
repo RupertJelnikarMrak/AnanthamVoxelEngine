@@ -1,4 +1,7 @@
+use std::sync::atomic::Ordering;
+
 use super::data::{CHUNK_VOLUME, Chunk, ChunkData};
+use crate::voxel::block::REGISTERED_STATE_COUNT;
 use crate::voxel::block::data::BlockState;
 use crate::voxel::world::math::local_to_index;
 use bevy::prelude::*;
@@ -54,11 +57,16 @@ impl Chunk {
         if (local.x as u32) >= 32 || (local.y as u32) >= 32 || (local.z as u32) >= 32 {
             return Err(ChunkError::OutOfLocalBounds);
         }
+        if state.0 >= REGISTERED_STATE_COUNT.load(Ordering::Acquire) {
+            return Err(ChunkError::UnregisteredBlockSet);
+        }
 
         let index = local_to_index(local);
 
         // SAFETY: Bounds are manually checked at the start of the function
         unsafe {
+            // If there's nothing to change we do not call `set_block_unchecked` as it would mark
+            // the chunk as dirty for no reason
             if self.get_block_unchecked(index) == state {
                 return Ok(());
             }
@@ -71,7 +79,8 @@ impl Chunk {
     /// Safely applies a single block modification inside this chunk.
     ///
     /// # Safety
-    /// The caller should guarantee that `index` is strictly between `0` and `32767` (`CHUNK_VOLUME - 1`).
+    /// The caller should guarantee that `index` is strictly between `0` and `32767` (`CHUNK_VOLUME - 1`)
+    /// and that the block id is actually registered
     #[inline]
     pub unsafe fn set_block_unchecked(&mut self, index: usize, state: BlockState) {
         debug_assert!(index < CHUNK_VOLUME, "Chunk index out of bounds: {}", index);
@@ -141,6 +150,7 @@ impl Chunk {
     ///
     /// # Safety
     /// The caller should guarantee that all `usize` indices in the `deltas` slice are strictly between `0` and `32767` (`CHUNK_VOLUME - 1`).
+    /// and that the block ids is actually registered
     pub unsafe fn set_block_batch_unchecked(&mut self, deltas: &[(usize, BlockState)]) {
         if deltas.is_empty() {
             return;
