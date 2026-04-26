@@ -1,4 +1,3 @@
-use super::property::registry::PropertyPadder;
 use crate::voxel::block::{Block, BlockState};
 use bevy::prelude::*;
 use std::collections::HashMap;
@@ -15,44 +14,32 @@ pub static REGISTERED_STATE_COUNT: AtomicU32 = AtomicU32::new(1);
 pub struct BlockRegistry {
     name_to_block: HashMap<String, Arc<Block>>,
     state_to_block: Vec<Arc<Block>>,
-
-    property_padders: Vec<Box<dyn PropertyPadder>>,
 }
 
 impl BlockRegistry {
-    /// ONLY allowed during the Init Stage.
-    /// Registers a new property array (like Meshing or Physics) to be auto-padded.
-    pub fn register_property_array(&mut self, padder: Box<dyn PropertyPadder>) {
-        padder.pad_to(self.state_to_block.len());
-        self.property_padders.push(padder);
-    }
-
     pub fn iter_blocks(&self) -> impl Iterator<Item = &Arc<Block>> {
         self.name_to_block.values()
     }
 
-    /// Allowed at any time (Init or Runtime/Hot-Reloading).
-    /// Allocates IDs and instantly synchronizes all registered property arrays.
     pub fn register_block(
         &mut self,
         namespace: &str,
         name: &str,
-        display_name: &str,
-        state_count: u32,
-        is_divisible: bool,
+        is_fractional: bool,
     ) -> Arc<Block> {
         let base_id = self.state_to_block.len() as u32;
+        let state_count = if is_fractional { 256 } else { 1 };
+
         let block = Arc::new(Block {
             base_id,
-            state_count,
             namespace: Arc::from(namespace),
             name: Arc::from(name),
-            display_name: Arc::from(display_name),
-            is_divisible,
+            state_count,
+            is_fractional,
         });
 
-        self.name_to_block
-            .insert(namespace.to_string(), Arc::clone(&block));
+        let full_name = format!("{}:{}", namespace, name);
+        self.name_to_block.insert(full_name, Arc::clone(&block));
 
         for _ in 0..state_count {
             self.state_to_block.push(Arc::clone(&block));
@@ -60,17 +47,13 @@ impl BlockRegistry {
 
         let new_total = self.state_to_block.len();
 
-        for padder in &self.property_padders {
-            padder.pad_to(new_total);
-        }
-
         REGISTERED_STATE_COUNT.store(new_total as u32, Ordering::Release);
 
         block
     }
 
-    pub fn get_block_by_name(&self, namespace: &str) -> Option<Arc<Block>> {
-        self.name_to_block.get(namespace).cloned()
+    pub fn get_block_by_name(&self, full_name: &str) -> Option<Arc<Block>> {
+        self.name_to_block.get(full_name).cloned()
     }
 
     pub fn get_block(&self, state: BlockState) -> Option<Arc<Block>> {

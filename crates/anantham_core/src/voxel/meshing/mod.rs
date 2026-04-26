@@ -6,25 +6,26 @@ pub mod registry;
 pub mod system;
 
 pub use context::MeshingContext;
-pub use greedy::{CHUNK_SIZE, generate_greedy_quads};
-pub use meshlet::{MAX_QUADS_PER_MESHLET, Meshlet, build_meshlets};
+pub use meshlet::{MAX_QUADS_PER_MESHLET, Meshlet};
 pub use quad::{UnpackedQuad, VoxelFace};
-pub use registry::{MeshingAssets, MeshingAttributes};
+pub use registry::{MeshingAttributes, MeshingRegistry};
 pub use system::{ChunkCoord, ChunkMesh, MeshDirty};
 
 use bevy::prelude::*;
-
-use crate::voxel::block::property::AppBlockPropertyExt;
 
 pub struct VoxelMeshingPlugin;
 
 impl Plugin for VoxelMeshingPlugin {
     fn build(&self, app: &mut App) {
-        app.register_block_property::<MeshingAssets>("mesh.ron");
+        app.init_resource::<MeshingRegistry>();
 
         app.add_systems(
             Update,
-            (system::dispatch_meshing_tasks, system::apply_meshing_tasks),
+            (
+                system::queue_dirty_chunks_system,
+                system::dispatch_meshing_tasks,
+                system::apply_meshing_tasks,
+            ),
         );
     }
 }

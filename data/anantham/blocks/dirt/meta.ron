@@ -1,5 +1,6 @@
 (
-    name: "Dirt",
-    description: "Standard foundational soil.",
     texture_id: "anantham:dirt",
+    is_fractional: true,
+    is_visible: true,
+    is_transparent: false,
 )

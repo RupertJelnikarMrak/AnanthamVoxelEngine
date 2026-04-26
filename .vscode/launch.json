@@ -1,0 +1,15 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "codelldb",
+      "request": "launch",
+      "name": "Debug Sandbox",
+      "program": "${workspaceFolder}/target/debug/anantham_sandbox",
+      "args": [],
+      "cwd": "${workspaceFolder}",
+      "sourceLanguages": ["rust"],
+      "stopOnEntry": false
+    }
+  ]
+}

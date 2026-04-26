@@ -1,85 +1,65 @@
 use super::registry::BlockRegistry;
+use super::vfs::BlockDataVfs;
+use crate::state::AppState;
+use crate::voxel::meshing::MeshingAttributes;
+use crate::voxel::meshing::registry::MeshingRegistry;
 use bevy::prelude::*;
 use serde::Deserialize;
 use std::fs;
 
-#[derive(Deserialize)]
-pub struct BlockMeta {
-    pub name: String,
-    pub description: String,
-    pub texture_id: String,
-    #[serde(default)]
-    pub is_divisible: bool,
-    #[serde(default)]
-    pub custom_states: u32,
+fn is_visible_default() -> bool {
+    true
 }
 
-pub fn discover_blocks_from_disk(mut registry: ResMut<BlockRegistry>) {
-    info!("Starting Block Discovery Phase...");
+#[derive(Deserialize)]
+pub struct BlockMeta {
+    pub texture_id: String,
+    #[serde(default)]
+    pub is_fractional: bool,
+    #[serde(default = "is_visible_default")]
+    pub is_visible: bool,
+    #[serde(default)]
+    pub is_transparent: bool,
+}
 
-    registry.register_block("core", "air", "Air", 1, false);
+pub fn register_blocks_from_vfs(
+    mut block_registry: ResMut<BlockRegistry>,
+    meshing_registry: ResMut<MeshingRegistry>,
+    vfs: Res<BlockDataVfs>,
+    mut next_state: ResMut<NextState<AppState>>,
+) {
+    info!("Starting Block Registry Phase...");
 
-    let data_dir = std::path::Path::new("data");
+    block_registry.register_block("anantham", "air", false);
 
-    if !data_dir.exists() {
-        warn!("Data directory not found at {:?}", data_dir);
-        return;
-    }
+    vfs.build_index();
 
-    for namespace_entry in std::fs::read_dir(data_dir).expect("Failed to read data directory") {
-        let namespace_entry = namespace_entry.unwrap();
-        let namespace_path = namespace_entry.path();
+    let vfs_read = vfs.inner.read().unwrap();
 
-        if namespace_path.is_dir() {
-            let namespace = namespace_path.file_name().unwrap().to_str().unwrap();
-            let blocks_dir = namespace_path.join("blocks");
+    let mut batch = Vec::with_capacity(256);
 
-            if blocks_dir.exists() && blocks_dir.is_dir() {
-                for block_entry in
-                    fs::read_dir(&blocks_dir).expect("Failed to read blocks directory")
-                {
-                    let block_entry = block_entry.unwrap();
-                    let block_path = block_entry.path();
+    for ((namespace, name), meta_path) in &vfs_read.discovered_blocks {
+        let ron_str = fs::read_to_string(meta_path).expect("Failed to read meta.ron");
 
-                    if block_path.is_dir() {
-                        let name = block_path.file_name().unwrap().to_str().unwrap();
-                        let meta_path = block_path.join("meta.ron");
+        if let Ok(meta) = ron::from_str::<BlockMeta>(&ron_str) {
+            let block = block_registry.register_block(namespace, name, meta.is_fractional);
 
-                        if meta_path.exists() {
-                            let ron_str = std::fs::read_to_string(&meta_path)
-                                .expect("Failed to read meta.ron");
-                            match ron::from_str::<BlockMeta>(&ron_str) {
-                                Ok(meta) => {
-                                    let state_count = if meta.is_divisible {
-                                        256 + meta.custom_states
-                                    } else {
-                                        meta.custom_states.max(1)
-                                    };
+            batch.clear();
 
-                                    registry.register_block(
-                                        namespace,
-                                        name,
-                                        &meta.name,
-                                        state_count,
-                                        meta.is_divisible,
-                                    );
+            for offset in 0..block.state_count {
+                let fractional_mask = offset as u8;
 
-                                    debug!("Discovered & Registered Block: {}:{}", namespace, name);
-                                }
-                                Err(e) => warn!(
-                                    "Syntax error in meta.ron for {}:{}: {}",
-                                    namespace, name, e
-                                ),
-                            }
-                        } else {
-                            warn!(
-                                "Block folder '{}:{}' is missing a meta.ron file!",
-                                namespace, name
-                            );
-                        }
-                    }
-                }
+                batch.push(MeshingAttributes::new(
+                    meta.is_visible,
+                    meta.is_transparent,
+                    fractional_mask,
+                    0,
+                ));
             }
+            meshing_registry.set_batch(block.base_id, &batch);
+            info!("Discovered & Registered Block: {}:{}", namespace, name);
+        } else {
+            warn!("Syntax error in meta.ron for {}:{}", namespace, name);
         }
     }
 
@@ -88,4 +68,6 @@ pub fn discover_blocks_from_disk(mut registry: ResMut<BlockRegistry>) {
         crate::voxel::block::registry::REGISTERED_STATE_COUNT
             .load(std::sync::atomic::Ordering::Relaxed)
     );
+
+    next_state.set(AppState::InGame);
 }

@@ -8,10 +8,10 @@
 
 use crate::input::AnanthamInputPlugin;
 use crate::render_bridge::RenderBridgePlugin;
-use crate::state::EngineState;
+use crate::spatial::AnanthamSpatialPlugin;
+use crate::state::AppState;
 use crate::voxel::VoxelCorePlugin;
 use crate::window::{ANANTHAM_WINDOW_TITLE, AnanthamWindowPlugin};
-use bevy::asset::io::AssetSourceBuilder;
 use bevy::prelude::*;
 use bevy::window::WindowResolution;
 use std::time::Duration;
@@ -20,35 +20,27 @@ pub struct AnanthamCorePlugin;
 
 impl Plugin for AnanthamCorePlugin {
     fn build(&self, app: &mut App) {
-        let data_path = std::env::current_dir().unwrap().join("data");
-        app.register_asset_source(
-            "data",
-            AssetSourceBuilder::platform_default(data_path.to_str().unwrap(), None),
-        );
-
         app.add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 title: ANANTHAM_WINDOW_TITLE.to_string(),
+                name: Some("anantham-game".into()),
                 resolution: WindowResolution::new(1280, 720),
                 ..default()
             }),
             ..default()
         }));
 
-        app.init_state::<EngineState>();
+        app.init_state::<AppState>();
 
         app.add_plugins((
             AnanthamWindowPlugin,
             AnanthamInputPlugin,
+            AnanthamSpatialPlugin,
             RenderBridgePlugin,
             VoxelCorePlugin,
         ));
 
         // Set tick speed to 50ms / 20 times a second.
         app.insert_resource(Time::<Fixed>::from_duration(Duration::from_millis(50)));
-
-        app.add_systems(Startup, |mut next_state: ResMut<NextState<EngineState>>| {
-            next_state.set(EngineState::RegisterBlocks);
-        });
     }
 }

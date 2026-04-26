@@ -1,6 +1,7 @@
 pub mod input;
 pub mod plugin;
 pub mod render_bridge;
+pub mod spatial;
 pub mod state;
 pub mod voxel;
 pub mod window;

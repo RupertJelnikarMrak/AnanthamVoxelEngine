@@ -2,14 +2,14 @@ use bevy::prelude::*;
 use bevy::tasks::{AsyncComputeTaskPool, Task};
 use futures_lite::future;
 
-use crate::voxel::block::PropertyRegistry;
 use crate::voxel::chunk::Chunk;
+use crate::voxel::chunk::ChunkActivity;
 use crate::voxel::world::ChunkMap;
 
 use super::context::MeshingContext;
 use super::greedy::generate_greedy_quads;
 use super::meshlet::{Meshlet, build_meshlets};
-use super::registry::MeshingAttributes;
+use super::registry::MeshingRegistry;
 
 /// Marker component added to a chunk when its blocks are modified.
 #[derive(Component)]
@@ -33,26 +33,26 @@ type DirtyChunkFilter = (With<MeshDirty>, Without<MeshingTask>);
 
 pub fn dispatch_meshing_tasks(
     mut commands: Commands,
-    registry: Res<PropertyRegistry<MeshingAttributes>>,
+    registry: Res<MeshingRegistry>,
     chunk_map: Res<ChunkMap>,
     query: Query<(Entity, &Chunk, &ChunkCoord), DirtyChunkFilter>,
     all_chunks: Query<&Chunk>,
 ) {
     let thread_pool = AsyncComputeTaskPool::get();
 
-    let registry_arc = registry.clone();
+    let registry_arc = (*registry).clone();
 
     for (entity, center_chunk, coord) in query.iter() {
         let pos = coord.0;
 
         // [-X, +X, -Y, +Y, -Z, +Z]
         let offsets = [
-            IVec3::new(-1, 0, 0),
-            IVec3::new(1, 0, 0),
-            IVec3::new(0, -1, 0),
-            IVec3::new(0, 1, 0),
-            IVec3::new(0, 0, -1),
-            IVec3::new(0, 0, 1),
+            IVec3::new(-32, 0, 0),
+            IVec3::new(32, 0, 0),
+            IVec3::new(0, -32, 0),
+            IVec3::new(0, 32, 0),
+            IVec3::new(0, 0, -32),
+            IVec3::new(0, 0, 32),
         ];
 
         let mut neighbors: [Option<Chunk>; 6] = Default::default();
@@ -94,6 +94,20 @@ pub fn apply_meshing_tasks(mut commands: Commands, mut query: Query<(Entity, &mu
                 .entity(entity)
                 .remove::<MeshingTask>()
                 .insert(ChunkMesh { meshlets });
+        }
+    }
+}
+
+type CleanChunkFilter = (Without<MeshDirty>, Without<MeshingTask>);
+
+pub fn queue_dirty_chunks_system(
+    mut commands: Commands,
+    mut query: Query<(Entity, &mut ChunkActivity), CleanChunkFilter>,
+) {
+    for (entity, mut activity) in query.iter_mut() {
+        if activity.is_dirty {
+            commands.entity(entity).insert(MeshDirty);
+            activity.is_dirty = false;
         }
     }
 }

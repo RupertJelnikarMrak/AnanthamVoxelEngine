@@ -9,6 +9,8 @@ use leafwing_input_manager::prelude::*;
 pub enum CoreAction {
     #[actionlike(DualAxis)]
     MoveCamera,
+    FlyUp,
+    FlyDown,
     #[actionlike(DualAxis)]
     LookAround,
     ToggleFullscreen,
@@ -24,6 +26,8 @@ pub fn default_input_map() -> InputMap<CoreAction> {
     map.insert(CoreAction::Interact, MouseButton::Left);
 
     map.insert_dual_axis(CoreAction::MoveCamera, VirtualDPad::wasd());
+    map.insert(CoreAction::FlyUp, KeyCode::Space);
+    map.insert(CoreAction::FlyDown, KeyCode::ShiftLeft);
 
     map.insert_dual_axis(CoreAction::LookAround, MouseMove::default());
 

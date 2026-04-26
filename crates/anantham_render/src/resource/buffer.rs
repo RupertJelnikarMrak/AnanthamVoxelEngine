@@ -1,5 +1,6 @@
+use super::allocator::GpuAllocator;
 use ash::vk;
-use gpu_allocator::vulkan::{Allocation, AllocationCreateDesc, Allocator};
+use gpu_allocator::vulkan::{Allocation, AllocationCreateDesc};
 use std::error::Error;
 
 pub struct Buffer {
@@ -11,7 +12,7 @@ pub struct Buffer {
 impl Buffer {
     pub fn new(
         device: &ash::Device,
-        allocator: &mut Allocator,
+        allocator: &mut GpuAllocator,
         size: u64,
         usage: vk::BufferUsageFlags,
         memory_location: gpu_allocator::MemoryLocation,
@@ -61,7 +62,7 @@ impl Buffer {
         }
     }
 
-    pub fn destroy(self, device: &ash::Device, allocator: &mut Allocator) {
+    pub fn destroy(self, device: &ash::Device, allocator: &mut GpuAllocator) {
         unsafe {
             device.destroy_buffer(self.buffer, None);
         }

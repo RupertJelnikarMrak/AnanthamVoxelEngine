@@ -11,3 +11,6 @@ gpu-allocator = { workspace = true }
 anantham_core = { workspace = true }
 bevy = { workspace = true }
 bytemuck = { workspace = true }
+
+[build-dependencies]
+shaderc = { workspace = true }

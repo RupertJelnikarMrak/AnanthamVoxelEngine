@@ -18,6 +18,7 @@ use crate::voxel::block::data::BlockState;
 use bevy::prelude::*;
 
 pub const CHUNK_SIZE: usize = 32;
+pub const CHUNK_SIZE_I32: i32 = 32;
 pub const CHUNK_VOLUME: usize = CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE;
 
 #[derive(Clone)]

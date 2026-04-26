@@ -1,5 +1,4 @@
 use crate::voxel::meshing::quad::{UnpackedQuad, VoxelFace};
-use bevy::math::Vec3;
 
 /// The exact byte-layout that the Vulkan GLSL Mesh Shader will read.
 /// Size: 8 bytes per Quad.
@@ -49,11 +48,19 @@ impl From<&UnpackedQuad> for GpuQuad {
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Default, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct GpuMeshlet {
-    // Used by Task Shader for Frustum/Occlusion Culling
-    pub bounds_min: Vec3,
-    pub bounds_max: Vec3,
+    pub chunk_x: f32,
+    pub chunk_y: f32,
+    pub chunk_z: f32,
 
-    // Pointers into the global GpuQuad SSBO
+    pub bounds_min_x: f32,
+    pub bounds_min_y: f32,
+    pub bounds_min_z: f32,
+
+    pub bounds_max_x: f32,
+    pub bounds_max_y: f32,
+    pub bounds_max_z: f32,
+
     pub quad_offset: u32,
     pub quad_count: u32,
+    pub padding: u32,
 }

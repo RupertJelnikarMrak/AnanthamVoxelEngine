@@ -1,10 +1,15 @@
+use crate::core::pipeline::VoxelPipeline;
 use crate::core::{device::VulkanDevice, swapchain::SwapchainSetup, sync::SyncSetup};
 use crate::resource::allocator::GpuAllocator;
+use crate::resource::image::DepthBuffer;
+use crate::resource::scene::GpuVoxelScene;
+use anantham_core::render_bridge::extraction::ExtractedCamera;
 
 use ash::vk;
 use bevy::prelude::*;
 use bevy::window::{RawHandleWrapper, Window};
 use std::error::Error;
+use std::mem::ManuallyDrop;
 
 #[derive(Resource)]
 pub struct RenderContext {
@@ -12,6 +17,11 @@ pub struct RenderContext {
     pub swapchain: SwapchainSetup,
     pub sync: SyncSetup,
     pub allocator: GpuAllocator,
+    pub scene: ManuallyDrop<GpuVoxelScene>,
+    pub pipeline: VoxelPipeline,
+    pub descriptor_pool: vk::DescriptorPool,
+    pub descriptor_set: vk::DescriptorSet,
+    pub depth_buffer: ManuallyDrop<DepthBuffer>,
 }
 
 impl RenderContext {
@@ -21,12 +31,59 @@ impl RenderContext {
         let vkd = VulkanDevice::new(handle_wrapper)?;
         let swapchain = SwapchainSetup::new(window, &vkd)?;
         let sync = SyncSetup::new(&vkd)?;
-
-        let allocator = GpuAllocator::new(
+        let mut allocator = GpuAllocator::new(
             vkd.instance.clone(),
             vkd.device.clone(),
             vkd.physical_device,
         )?;
+        let scene = GpuVoxelScene::new(&vkd.device, &mut allocator)?;
+        let pipeline = VoxelPipeline::new(&vkd.device, swapchain.format)?;
+
+        let pool_sizes = [vk::DescriptorPoolSize::default()
+            .ty(vk::DescriptorType::STORAGE_BUFFER)
+            .descriptor_count(2)];
+
+        let pool_info = vk::DescriptorPoolCreateInfo::default()
+            .pool_sizes(&pool_sizes)
+            .max_sets(2);
+
+        let descriptor_pool = unsafe { vkd.device.create_descriptor_pool(&pool_info, None)? };
+
+        let layouts = [pipeline.descriptor_set_layout];
+        let alloc_info = vk::DescriptorSetAllocateInfo::default()
+            .descriptor_pool(descriptor_pool)
+            .set_layouts(&layouts);
+
+        let descriptor_set = unsafe { vkd.device.allocate_descriptor_sets(&alloc_info)?[0] };
+
+        let quad_info = vk::DescriptorBufferInfo::default()
+            .buffer(scene.quad_buffer.buffer)
+            .offset(0)
+            .range(vk::WHOLE_SIZE);
+
+        let meshlet_info = vk::DescriptorBufferInfo::default()
+            .buffer(scene.meshlet_buffer.buffer)
+            .offset(0)
+            .range(vk::WHOLE_SIZE);
+
+        let write_quads = vk::WriteDescriptorSet::default()
+            .dst_set(descriptor_set)
+            .dst_binding(0) // Matches layout(binding = 0) in GLSL
+            .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
+            .buffer_info(std::slice::from_ref(&quad_info));
+
+        let write_meshlets = vk::WriteDescriptorSet::default()
+            .dst_set(descriptor_set)
+            .dst_binding(1) // Matches layout(binding = 1) in GLSL
+            .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
+            .buffer_info(std::slice::from_ref(&meshlet_info));
+
+        unsafe {
+            vkd.device
+                .update_descriptor_sets(&[write_quads, write_meshlets], &[]);
+        }
+
+        let depth_buffer = DepthBuffer::new(&vkd.device, &mut allocator, swapchain.extent)?;
 
         info!("Base Vulkan Context fully initialized");
 
@@ -35,15 +92,23 @@ impl RenderContext {
             swapchain,
             sync,
             allocator,
+            scene: ManuallyDrop::new(scene),
+            pipeline,
+            descriptor_pool,
+            descriptor_set,
+            depth_buffer: ManuallyDrop::new(depth_buffer),
         })
     }
 
-    pub fn draw_frame(&mut self) -> Result<(), Box<dyn Error>> {
-        self.record_and_submit_commands()?;
+    pub fn draw_frame(&mut self, camera: &ExtractedCamera) -> Result<(), Box<dyn Error>> {
+        self.record_and_submit_commands(camera)?;
         Ok(())
     }
 
-    fn record_and_submit_commands(&mut self) -> Result<(), Box<dyn Error>> {
+    fn record_and_submit_commands(
+        &mut self,
+        camera: &ExtractedCamera,
+    ) -> Result<(), Box<dyn Error>> {
         let device = &self.vkd.device;
         let swapchain_ext = &self.swapchain.ext;
 
@@ -84,14 +149,33 @@ impl RenderContext {
                     layer_count: 1,
                 });
 
+            let depth_barrier = vk::ImageMemoryBarrier::default()
+                .src_access_mask(vk::AccessFlags::empty())
+                .dst_access_mask(
+                    vk::AccessFlags::DEPTH_STENCIL_ATTACHMENT_WRITE
+                        | vk::AccessFlags::DEPTH_STENCIL_ATTACHMENT_READ,
+                )
+                .old_layout(vk::ImageLayout::UNDEFINED)
+                .new_layout(vk::ImageLayout::DEPTH_ATTACHMENT_OPTIMAL)
+                .image(self.depth_buffer.image)
+                .subresource_range(vk::ImageSubresourceRange {
+                    aspect_mask: vk::ImageAspectFlags::DEPTH,
+                    base_mip_level: 0,
+                    level_count: 1,
+                    base_array_layer: 0,
+                    layer_count: 1,
+                });
+
             device.cmd_pipeline_barrier(
                 self.sync.command_buffer,
                 vk::PipelineStageFlags::TOP_OF_PIPE,
-                vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
+                vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT
+                    | vk::PipelineStageFlags::EARLY_FRAGMENT_TESTS
+                    | vk::PipelineStageFlags::LATE_FRAGMENT_TESTS,
                 vk::DependencyFlags::empty(),
                 &[],
                 &[],
-                &[image_memory_barrier],
+                &[image_memory_barrier, depth_barrier],
             );
 
             let clear_value = vk::ClearValue {
@@ -106,13 +190,26 @@ impl RenderContext {
                 .store_op(vk::AttachmentStoreOp::STORE)
                 .clear_value(clear_value);
 
+            let depth_attachment_info = vk::RenderingAttachmentInfo::default()
+                .image_view(self.depth_buffer.view)
+                .image_layout(vk::ImageLayout::DEPTH_ATTACHMENT_OPTIMAL)
+                .load_op(vk::AttachmentLoadOp::CLEAR)
+                .store_op(vk::AttachmentStoreOp::DONT_CARE)
+                .clear_value(vk::ClearValue {
+                    depth_stencil: vk::ClearDepthStencilValue {
+                        depth: 0.0,
+                        stencil: 0,
+                    },
+                });
+
             let rendering_info = vk::RenderingInfo::default()
                 .render_area(vk::Rect2D {
                     offset: vk::Offset2D { x: 0, y: 0 },
                     extent: self.swapchain.extent,
                 })
                 .layer_count(1)
-                .color_attachments(std::slice::from_ref(&color_attachment_info));
+                .color_attachments(std::slice::from_ref(&color_attachment_info))
+                .depth_attachment(&depth_attachment_info);
 
             device.cmd_begin_rendering(self.sync.command_buffer, &rendering_info);
 
@@ -132,6 +229,38 @@ impl RenderContext {
                 extent: self.swapchain.extent,
             };
             device.cmd_set_scissor(self.sync.command_buffer, 0, &[scissor]);
+
+            device.cmd_bind_pipeline(
+                self.sync.command_buffer,
+                vk::PipelineBindPoint::GRAPHICS,
+                self.pipeline.pipeline,
+            );
+
+            device.cmd_bind_descriptor_sets(
+                self.sync.command_buffer,
+                vk::PipelineBindPoint::GRAPHICS,
+                self.pipeline.pipeline_layout,
+                0,
+                std::slice::from_ref(&self.descriptor_set),
+                &[],
+            );
+
+            device.cmd_push_constants(
+                self.sync.command_buffer,
+                self.pipeline.pipeline_layout,
+                vk::ShaderStageFlags::MESH_EXT,
+                0,
+                bytemuck::bytes_of(&camera.view_proj),
+            );
+
+            if self.scene.meshlet_count > 0 {
+                self.vkd.mesh_ext.cmd_draw_mesh_tasks(
+                    self.sync.command_buffer,
+                    self.scene.meshlet_count,
+                    1,
+                    1,
+                );
+            }
 
             // --- Extracted Render Nodes & Pipelines will be executed here ---
 
@@ -186,6 +315,15 @@ impl Drop for RenderContext {
         unsafe {
             let device = &self.vkd.device;
             let _ = device.device_wait_idle();
+
+            let depth_buffer = ManuallyDrop::take(&mut self.depth_buffer);
+            depth_buffer.destroy(device, &mut self.allocator);
+
+            self.pipeline.destroy(device);
+            device.destroy_descriptor_pool(self.descriptor_pool, None);
+
+            let scene = ManuallyDrop::take(&mut self.scene);
+            scene.destroy(device, &mut self.allocator);
 
             device.destroy_fence(self.sync.in_flight, None);
             device.destroy_semaphore(self.sync.render_finished, None);

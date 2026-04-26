@@ -1,5 +1,6 @@
 (
-    name: "Stone",
-    description: "Base stone block.",
-    texture_id: "anantham:stone"
+    texture_id: "anantham:stone",
+    is_visible: true,
+    is_transparent: false,
+    is_fractional: true,
 )

@@ -6,8 +6,10 @@ edition = "2024"
 [dependencies]
 bevy = { workspace = true }
 bytemuck = { workspace = true }
+directories = { workspace = true }
 futures-lite = { workspace = true }
 leafwing-input-manager = { workspace = true }
 ron = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
+walkdir = { workspace = true }

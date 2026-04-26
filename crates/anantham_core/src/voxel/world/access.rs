@@ -3,8 +3,8 @@ use bevy::prelude::*;
 use std::collections::HashMap;
 
 use crate::voxel::block::BlockState;
+use crate::voxel::chunk::ChunkActivity;
 use crate::voxel::chunk::{Chunk, ChunkError};
-use crate::voxel::gc::ChunkActivity;
 
 use super::math::{global_to_local, local_to_index};
 
@@ -99,18 +99,28 @@ impl<'w, 's> WorldVoxelAccessor<'w, 's> {
         let current_time = self.time.elapsed_secs_f64();
 
         for (chunk_coord, local_deltas) in chunk_groups {
-            if let Some(entity) = self.chunk_map.map.get(&chunk_coord)
-                && let Ok((mut chunk, mut activity)) = self.chunk_query.get_mut(*entity)
-            {
-                // SAFETY: `local_deltas` indices were generated via `local_to_index`
-                // mapped from `global_to_local`, mathematically guaranteeing they are within 0..32767.
-                unsafe {
-                    chunk.set_block_batch_unchecked(&local_deltas);
-                }
+            // 1. Check if the chunk is in the map
+            let Some(entity) = self.chunk_map.map.get(&chunk_coord) else {
+                warn!("Accessor failed: Chunk at {} is not loaded.", chunk_coord);
+                continue;
+            };
 
-                activity.is_dirty = true;
-                activity.last_modified = current_time;
+            // 2. Check if the ECS entity has both components
+            let Ok((mut chunk, mut activity)) = self.chunk_query.get_mut(*entity) else {
+                warn!(
+                    "Accessor failed: Entity {:?} is missing Chunk or ChunkActivity!",
+                    entity
+                );
+                continue;
+            };
+
+            // SAFETY: `local_deltas` indices were generated via `local_to_index`
+            unsafe {
+                chunk.set_block_batch_unchecked(&local_deltas);
             }
+
+            activity.is_dirty = true;
+            activity.last_modified = current_time;
         }
     }
 }

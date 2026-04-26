@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use bevy::tasks::{AsyncComputeTaskPool, Task};
 use futures_lite::future;
 
-use super::chunk::{Chunk, ChunkData, attempt_compression};
+use super::{Chunk, ChunkData, attempt_compression};
 
 /// Configuration for the background garbage collector.
 #[derive(Resource)]

@@ -1,12 +1,21 @@
+use crate::voxel::chunk::{CHUNK_SIZE, CHUNK_SIZE_I32};
 use bevy::math::IVec3;
-
-pub const CHUNK_SIZE: usize = 32;
-pub const CHUNK_SIZE_I32: i32 = 32;
 
 #[inline(always)]
 pub fn global_to_local(global: IVec3) -> (IVec3, IVec3) {
-    let chunk_coord = global.div_euclid(IVec3::splat(CHUNK_SIZE_I32));
-    let local_coord = global.rem_euclid(IVec3::splat(CHUNK_SIZE_I32));
+    let size = CHUNK_SIZE as i32;
+
+    let chunk_coord = IVec3::new(
+        global.x.div_euclid(size) * size,
+        global.y.div_euclid(size) * size,
+        global.z.div_euclid(size) * size,
+    );
+
+    let local_coord = IVec3::new(
+        global.x.rem_euclid(size),
+        global.y.rem_euclid(size),
+        global.z.rem_euclid(size),
+    );
 
     (chunk_coord, local_coord)
 }
